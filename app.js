@@ -21,7 +21,10 @@ LIMIT 10
 async function runQuery() {
   const url = endpoint + "?query=" + encodeURIComponent(query);
   const response = await fetch(url, {
-    headers: { "Accept": "application/sparql-results+json" }
+    headers: { 
+      "Accept": "application/sparql-results+json",
+      "User-Agent": "GenAge Data Viewer (https://yourdomain)"
+    }
   });
   const data = await response.json();
 
