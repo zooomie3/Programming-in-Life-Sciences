@@ -1,40 +1,49 @@
-const endpoint = "https://query.wikidata.org/sparql";
-const query = `
-# Find the APOE gene and related identifiers
-SELECT ?gene ?geneLabel ?entrez ?ensembl ?genecard ?taxonLabel WHERE {
-  ?gene wdt:P31 wd:Q7187;          # instance of 'gene'
-        wdt:P351 ?entrez;          # Entrez Gene ID
-        wdt:P703 wd:Q15978631.     # human
-        rdfs:label ?geneLabel.
+// sparql.js
 
-  FILTER(LANG(?geneLabel) = "en")
-  FILTER(CONTAINS(LCASE(?geneLabel), "apoe"))
+// Define an asynchronous function to fetch gene-trait data
+async function fetchGeneTraitData() {
+    // Wikidata SPARQL endpoint URL
+    const endpointUrl = "https://query.wikidata.org/sparql";
 
-  OPTIONAL { ?gene wdt:P594 ?ensembl. }   # Ensembl Gene ID
-  OPTIONAL { ?gene wdt:P671 ?genecard. }  # GeneCards ID
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+    // SPARQL query to get genes associated with a specific trait (Q11081)
+    const query = `
+        SELECT ?gene ?geneLabel ?trait ?traitLabel
+        WHERE {
+          ?gene wdt:P31 wd:Q7187 .       # Select items that are genes (instance of gene)
+          ?gene wdt:P2293 ?trait .       # Genes linked to a trait
+          VALUES ?trait { wd:Q11081 }    # Filter only the trait Q11081
+          SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }  # Get English labels
+        }
+    `;
+
+    // Construct the full URL for the GET request
+    // encodeURIComponent makes sure the query is URL-safe
+    const url = endpointUrl + "?query=" + encodeURIComponent(query) + "&format=json";
+
+    try {
+        // Fetch data from the endpoint
+        // 'Accept' header ensures the endpoint returns JSON
+        const response = await fetch(url, {
+            headers: {
+                'Accept': 'application/sparql-results+json'
+            }
+        });
+
+        // Parse the JSON response
+        const data = await response.json();
+
+        // Map the results to a simpler format: {gene, trait}
+        const results = data.results.bindings.map(item => ({
+            gene: item.geneLabel.value,   // Get gene name
+            trait: item.traitLabel.value  // Get trait name
+        }));
+
+        // Return the processed results
+        return results;
+
+    } catch (error) {
+        // Log errors if the fetch fails
+        console.error("Error fetching data:", error);
+        return [];  // Return empty array on error
+    }
 }
-LIMIT 10
-
-`;
-
-async function runQuery() {
-  const url = endpoint + "?query=" + encodeURIComponent(query);
-  const response = await fetch(url, {
-   headers: { "Accept": "application/sparql-results+json" } 
-  }); 
-  const data = await response.json();
-
-  const results = data.results.bindings;
-  const outputDiv = document.getElementById("output");
-  outputDiv.innerHTML = "<h3>Query Results:</h3>";
-
-  results.forEach(row => {
-    outputDiv.innerHTML += `<p>${row.itemLabel.value}</p>`;
-  });
-}
-
-document.getElementById("loadData").addEventListener("click", runQuery);
-
-
-
